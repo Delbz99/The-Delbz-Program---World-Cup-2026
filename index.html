@@ -144,10 +144,10 @@ h1 em{color:var(--gold);font-style:normal;}
 .bracket-wrap{margin-top:0;}
 .bracket-empty{text-align:center;padding:40px 20px;font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--muted);line-height:1.6;}
 .bkt-admin-note{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-align:center;padding:12px 16px 0;letter-spacing:.5px;}
-.bkt-subnav{display:flex;gap:7px;overflow-x:auto;padding:14px 16px 0;scrollbar-width:none;}
+.bkt-subnav{display:flex;gap:5px;overflow-x:auto;padding:14px 16px 0;scrollbar-width:none;}
 .bkt-subnav::-webkit-scrollbar{display:none;}
-.bkt-subnav-btn{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.5px;padding:7px 15px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .2s;}
-.bkt-subnav-btn.active{border-color:var(--text);color:var(--white);font-weight:800;background:rgba(255,255,255,.06);}
+.bkt-subnav-btn{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer;white-space:nowrap;flex:1 0 auto;text-align:center;transition:all .2s;}
+.bkt-subnav-btn.active{background:var(--green);border-color:var(--gl);color:var(--white);}
 .bkt-content{padding:14px 16px 40px;display:flex;flex-direction:column;gap:16px;}
 .bkt-pair{display:flex;gap:8px;align-items:center;}
 .bkt-pair-left{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
@@ -162,7 +162,7 @@ h1 em{color:var(--gold);font-style:normal;}
 .bkt-slot.client{border-left:2px solid rgba(240,180,41,.5);}
 .bkt-flag{font-size:14px;flex-shrink:0;width:18px;text-align:center;}
 .bkt-name{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.bkt-owner{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--gold);flex-shrink:0;}
+.bkt-owner{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;color:var(--gold);flex-shrink:0;}
 .bkt-peek-lbl{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);opacity:.7;margin-bottom:4px;}
 .bkt-peek{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color .2s;}
 .bkt-peek:hover{border-color:rgba(240,180,41,.25);}
@@ -276,17 +276,17 @@ footer{text-align:center;padding:24px 16px 16px;color:var(--muted);font-size:10p
   </div>
 </div>
 
-<!-- Top 5 always visible -->
-<div class="top5-inline">
-  <div class="top5-inline-title">⚡ Top 5</div>
+<!-- Top 5 accordion -->
+<div class="prizes-toggle" onclick="toggleTop5()">
+  <div class="prizes-toggle-left">👀 Predicted Top 5</div>
+  <span class="prizes-toggle-arrow" id="top5Arrow">▼</span>
+</div>
+<div class="prizes-panel" id="top5Panel">
   <div id="top5Widget"></div>
 </div>
 
 <div class="lu" id="lu"></div>
 
-<div class="tabs">
-  <div class="tab active" onclick="showTab('bracket')">Bracket</div>
-</div>
 
 <!-- GROUPS (hidden — admin access only) -->
 <div class="section" id="sec-groups" style="display:none;">
@@ -313,7 +313,7 @@ footer{text-align:center;padding:24px 16px 16px;color:var(--muted);font-size:10p
 </div>
 
 <!-- BRACKET -->
-<div class="section active" id="sec-bracket">
+<div id="sec-bracket" style="padding-bottom:40px;">
   <div class="bracket-wrap" id="bracketWrap"></div>
 </div>
 
@@ -405,6 +405,20 @@ const CLIENTS = [
 
 const OWNER = {};
 CLIENTS.forEach(c => c.teams.forEach(t => OWNER[t] = c.name));
+
+// FIFA power scores (higher = stronger team, used for pre-bracket ranking + tiebreaker)
+const FIFA_POWER = {
+  'Argentina':98,'France':95,'England':92,'Brazil':90,'Spain':88,
+  'Portugal':86,'Netherlands':83,'Germany':80,'Belgium':77,'Uruguay':73,
+  'Colombia':70,'Morocco':65,'USA':63,'Mexico':61,'Japan':60,
+  'Croatia':58,'Senegal':57,'Switzerland':55,'Sweden':53,'South Korea':48,
+  'Iran':50,'Austria':47,'Turkey':45,'Australia':44,'Tunisia':42,
+  'Norway':40,'Algeria':38,'Ecuador':36,'Egypt':35,'Qatar':34,
+  'Scotland':33,'Czech Republic':32,'Ivory Coast':31,'Canada':30,
+  'Ghana':29,'DR Congo':28,'Iraq':27,'Saudi Arabia':26,'Paraguay':25,
+  'Panama':24,'Bosnia-Herzegovina':23,'New Zealand':20,'Cape Verde':19,
+  'South Africa':18,'Jordan':17,'Curaçao':15,'Haiti':13,'Uzbekistan':12,
+};
 
 const FIFA_R32 = [
   {id:'M74', top:'1E', bot:'3ABCDF'},
@@ -585,6 +599,15 @@ function teamBracketStage(team) {
 
 function clientScore(c) {
   return Math.max(...c.teams.map(t => teamBracketStage(t)));
+}
+
+function clientPowerScore(c) {
+  return Math.max(...c.teams.map(t => FIFA_POWER[t] || 0));
+}
+
+function clientTotalScore(c) {
+  // Bracket stage is primary (×1000), FIFA power is tiebreaker
+  return clientScore(c) * 1000 + clientPowerScore(c);
 }
 
 function stageName(roundIdx) {
@@ -784,7 +807,7 @@ function bktMatchCard(match) {
       onclick="advanceTeam('${match.id}',${si})">
       <span class="bkt-flag">${slot.team ? fl(slot.team) : ''}</span>
       <span class="bkt-name">${slot.team || slot.label || 'TBD'}</span>
-      ${owner ? `<span class="bkt-owner">· ${owner}</span>` : ''}
+      ${owner ? `<span class="bkt-owner">(${owner})</span>` : ''}
     </div>`;
   });
   return h + `</div>`;
@@ -830,7 +853,7 @@ function bktThirdPlaceCard(compact) {
     h += `<div class="bkt-slot ${owner?'client':''}">
       <span class="bkt-flag">${slot.team ? fl(slot.team) : ''}</span>
       <span class="bkt-name">${slot.team || slot.label}</span>
-      ${owner ? `<span class="bkt-owner">· ${owner}</span>` : ''}
+      ${owner ? `<span class="bkt-owner">(${owner})</span>` : ''}
     </div>`;
   });
   return h + `</div>`;
@@ -1153,7 +1176,7 @@ function saveAdmin() {
 function renderTop5() {
   const widget = document.getElementById('top5Widget');
 
-  const sorted = [...CLIENTS].sort((a,b) => clientScore(b) - clientScore(a));
+  const sorted = [...CLIENTS].sort((a,b) => clientTotalScore(b) - clientTotalScore(a));
   const top5 = sorted.slice(0, 5);
   const allTied = top5.every(c => clientScore(c) === clientScore(top5[0]));
 
@@ -1166,9 +1189,13 @@ function renderTop5() {
     const score = clientScore(c);
     const showBadge = !allTied && score > 0;
     const badgeCls = showBadge ? stageBadgeClass(score - 1) : '';
+    const teamsHtml = c.teams.map(t => `${fl(t)} ${t}`).join(' · ');
     return `<div class="t5w-row">
       <span class="t5w-rank">${rankLabel(i)}</span>
-      <span class="t5w-name">${c.name}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;color:var(--white);">${c.name}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--gold);font-weight:700;letter-spacing:.3px;margin-top:1px;">${teamsHtml}</div>
+      </div>
       ${showBadge ? `<span class="t5w-badge ${badgeCls}">${shortStage(score)}</span>` : ''}
     </div>`;
   }).join('');
@@ -1184,6 +1211,13 @@ function showTab(tab) {
 function togglePrizes() {
   const panel = document.getElementById('prizesPanel');
   const arrow = document.getElementById('prizesArrow');
+  panel.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+function toggleTop5() {
+  const panel = document.getElementById('top5Panel');
+  const arrow = document.getElementById('top5Arrow');
   panel.classList.toggle('open');
   arrow.classList.toggle('open');
 }
